@@ -1,16 +1,50 @@
-# React + Vite
+# Templo Digital
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Habit tracker gnóstico em React + Vite + Firebase.
 
-Currently, two official plugins are available:
+## Rodar localmente
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+App local:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```txt
+http://127.0.0.1:4173
+```
 
-## Expanding the ESLint configuration
+## Firebase
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Preencha o arquivo `.env` na raiz com:
+
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+### Checklist mínimo no console
+
+1. Crie o projeto Firebase.
+2. Em `Authentication > Sign-in method`, habilite `Google`.
+3. Em `Authentication > Settings > Authorized domains`, confirme `localhost`.
+4. Crie o `Firestore Database` em modo nativo.
+5. Publique as regras de [firestore.rules](C:/Users/Albert%20Lima/Dev/tracker-gnostico/firestore.rules).
+
+## Regras do Firestore
+
+Use o arquivo [firestore.rules](C:/Users/Albert%20Lima/Dev/tracker-gnostico/firestore.rules).
+
+## Validação do MVP
+
+1. Abra o app local.
+2. Clique em `Entrar com Google`.
+3. Após login, confirme se a seed criou `users/{uid}/config/habits`.
+4. Confirme se o dia atual criou `users/{uid}/days/{YYYY-MM-DD}`.
+5. Marque hábitos e veja se `progress` muda em tempo real.
+6. Abra em duas abas para validar sincronização.
