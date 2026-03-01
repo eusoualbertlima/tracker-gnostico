@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-card: #1a1a2e;
+  --accent-green: #00e676;
+  --accent-gold: #ffd700;
+  --text-primary: #e0e0e0;
+  --text-muted: #666666;
+  --danger: #ff5252;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 24px 60px rgba(0, 0, 0, 0.35);
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at top, rgba(255, 215, 0, 0.12), transparent 28%),
+    radial-gradient(circle at bottom, rgba(0, 230, 118, 0.08), transparent 32%),
+    var(--bg-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px 16px 40px;
+}
+
+.panel {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 480px;
+}
+
+.glass-panel {
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, rgba(26, 26, 46, 0.96), rgba(14, 14, 22, 0.98));
+  box-shadow: var(--shadow-soft);
+  border-radius: 28px;
+}
+
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.08);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+
+.action-button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.32);
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  border-radius: 18px;
+  padding: 10px 14px;
+  transition: transform 200ms ease, border-color 200ms ease, background-color 200ms ease;
+}
+
+.ghost-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.danger-button {
+  border-color: rgba(255, 82, 82, 0.3);
+  color: #ffb4b4;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 6, 11, 0.7);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.screen-fade {
+  animation: fade-in 320ms ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
