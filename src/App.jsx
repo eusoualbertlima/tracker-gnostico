@@ -1,11 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useAuth } from './context/AuthContext.jsx';
 import { firebaseReady, initializeAnalytics } from './firebase.js';
 import { seedDefaultHabits, seedUserProfile } from './services/habitService.js';
 
 const Dashboard = lazy(() => import('./components/Dashboard.jsx'));
 const LoginScreen = lazy(() => import('./components/LoginScreen.jsx'));
-const SettingsScreen = lazy(() => import('./components/SettingsScreen.jsx'));
 
 function ScreenLoader() {
   return (
@@ -19,7 +18,6 @@ function ScreenLoader() {
 
 function App() {
   const { user, loading } = useAuth();
-  const [screen, setScreen] = useState('dashboard');
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -33,7 +31,6 @@ function App() {
 
   useEffect(() => {
     if (!user) {
-      setScreen('dashboard');
       return;
     }
 
@@ -57,11 +54,7 @@ function App() {
   return (
     <main className="app-shell">
       <Suspense fallback={<ScreenLoader />}>
-        {screen === 'settings' ? (
-          <SettingsScreen onBack={() => setScreen('dashboard')} />
-        ) : (
-          <Dashboard onOpenSettings={() => setScreen('settings')} />
-        )}
+        <Dashboard />
       </Suspense>
     </main>
   );
