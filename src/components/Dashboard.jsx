@@ -1,19 +1,28 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { LogOut, Settings } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useHabitConfig } from '../hooks/useHabitConfig.js';
 import { useHabits } from '../hooks/useHabits.js';
 import { useRecentProgress } from '../hooks/useRecentProgress.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { saveReflection, toggleHabit } from '../services/habitService.js';
+import { saveReflection, toggleHabit, updateNotificationPreferences } from '../services/habitService.js';
+import {
+  buildReminderStorageKey,
+  getNotificationPermission,
+  notificationsSupported,
+  requestNotificationPermission,
+  showTempleNotification,
+} from '../services/notificationService.js';
 import { analyzeRetrospective } from '../utils/egoAnalysis.js';
+import DashboardSidebar from './DashboardSidebar.jsx';
 import FocusBoard from './FocusBoard.jsx';
 import HabitFilters from './HabitFilters.jsx';
 import HabitHistoryPanel from './HabitHistoryPanel.jsx';
 import HabitBlock from './HabitBlock.jsx';
 import MonthlyHeatmap from './MonthlyHeatmap.jsx';
+import NotificationPanel from './NotificationPanel.jsx';
 import ProgressBar from './ProgressBar.jsx';
 import RetrospectivePanel from './RetrospectivePanel.jsx';
 import StreakBadge from './StreakBadge.jsx';
@@ -71,7 +80,12 @@ function Dashboard({ onOpenSettings }) {
   const [selectedHabitId, setSelectedHabitId] = useState('');
   const [reflectionSaving, setReflectionSaving] = useState(false);
   const [reflectionError, setReflectionError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission());
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
   const deferredSearchValue = useDeferredValue(searchValue);
+  const notificationSettings = profile?.notifications ?? { enabled: false, leadMinutes: 10 };
 
   const checkedCount = useMemo(
     () => Object.values(day?.habits ?? {}).filter(Boolean).length,
@@ -170,6 +184,68 @@ function Dashboard({ onOpenSettings }) {
     }
   }, [habitsForHistory, selectedHabitId]);
 
+  useEffect(() => {
+    setNotificationPermission(getNotificationPermission());
+  }, []);
+
+  useEffect(() => {
+    if (!notificationSettings.enabled || notificationPermission !== 'granted') {
+      return undefined;
+    }
+
+    const timedPendingHabits = organizedHabits.filter(
+      (habit) => !habit.checked && getTimeRank(habit.time) !== Number.MAX_SAFE_INTEGER,
+    );
+
+    async function checkReminders() {
+      const now = new Date();
+      const minutesNow = now.getHours() * 60 + now.getMinutes();
+
+      for (const habit of timedPendingHabits) {
+        const habitMinutes = getTimeRank(habit.time);
+        const reminderMinute = habitMinutes - notificationSettings.leadMinutes;
+        const alreadySentKey = buildReminderStorageKey(
+          dateKey,
+          habit.id,
+          notificationSettings.leadMinutes,
+        );
+
+        if (minutesNow < reminderMinute || minutesNow > habitMinutes) {
+          continue;
+        }
+
+        if (window.localStorage.getItem(alreadySentKey)) {
+          continue;
+        }
+
+        const sent = await showTempleNotification(`Habitual: ${habit.label}`, {
+          body: `${habit.blockTitle} com início em ${habit.time}.`,
+          tag: alreadySentKey,
+        });
+
+        if (sent) {
+          window.localStorage.setItem(alreadySentKey, new Date().toISOString());
+        }
+      }
+    }
+
+    checkReminders().catch(() => {
+      console.error('Falha ao verificar lembretes locais.');
+    });
+
+    const intervalId = window.setInterval(() => {
+      checkReminders().catch(() => {
+        console.error('Falha ao verificar lembretes locais.');
+      });
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, [dateKey, notificationPermission, notificationSettings.enabled, notificationSettings.leadMinutes, organizedHabits]);
+
+  function scrollToSection(sectionId) {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   async function handleToggle(habitId) {
     await toggleHabit(user.uid, dateKey, habitId);
   }
@@ -186,103 +262,165 @@ function Dashboard({ onOpenSettings }) {
     }
   }
 
+  async function handleRequestNotificationPermission() {
+    const permission = await requestNotificationPermission();
+    setNotificationPermission(permission);
+  }
+
+  async function handleSendTestNotification() {
+    await showTempleNotification('Templo Digital', {
+      body: 'As notificações estão ativas neste dispositivo.',
+      tag: 'templo-test',
+    });
+  }
+
+  async function handleNotificationSettingsChange(nextSettings) {
+    try {
+      setNotificationSaving(true);
+      setNotificationError('');
+      await updateNotificationPreferences(user.uid, nextSettings);
+    } catch (error) {
+      setNotificationError(error.message || 'Falha ao salvar notificações.');
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
   return (
-    <section className="panel screen-fade space-y-6">
-      <header className="glass-panel p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--accent-gold)]">
-              Paz Inverencial, {getGreetingName(user, profile)}.
-            </p>
-            <h1 className="mt-3 text-3xl font-extrabold text-white">{templeName}</h1>
-            <p className="mt-2 text-sm capitalize text-[var(--text-muted)]">{formattedDate}</p>
-            <p className="mt-3 max-w-[22rem] text-sm text-[var(--text-muted)]">{mantra}</p>
+    <section className="screen-fade">
+      <div className="mx-auto flex w-full max-w-[1320px] gap-6">
+        <DashboardSidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onLogout={logout}
+          onOpenSettings={onOpenSettings}
+          onScrollToSection={scrollToSection}
+        />
+
+        <div className="min-w-0 flex-1 space-y-6">
+          <header className="glass-panel p-6" id="overview">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--accent-gold)]">
+                  Paz Inverencial, {getGreetingName(user, profile)}.
+                </p>
+                <h1 className="mt-3 text-3xl font-extrabold text-white">{templeName}</h1>
+                <p className="mt-2 text-sm capitalize text-[var(--text-muted)]">{formattedDate}</p>
+                <p className="mt-3 max-w-[32rem] text-sm text-[var(--text-muted)]">{mantra}</p>
+              </div>
+              <button className="ghost-button lg:hidden" onClick={() => setSidebarOpen(true)} type="button">
+                <Menu size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <ProgressBar checkedCount={checkedCount} progress={progress} totalHabits={totalHabits} />
+              <StreakBadge streak={streak} />
+            </div>
+          </header>
+
+          {configLoading || dayLoading || profileLoading ? (
+            <p className="text-sm text-[var(--text-muted)]">Sincronizando hábitos do dia...</p>
+          ) : null}
+          {configError ? <p className="text-sm text-[var(--danger)]">{configError}</p> : null}
+          {profileError ? <p className="text-sm text-[var(--danger)]">{profileError}</p> : null}
+          {dayError ? <p className="text-sm text-[var(--danger)]">{dayError}</p> : null}
+          {recentDaysError ? <p className="text-sm text-[var(--danger)]">{recentDaysError}</p> : null}
+          {reflectionError ? <p className="text-sm text-[var(--danger)]">{reflectionError}</p> : null}
+          {notificationError ? <p className="text-sm text-[var(--danger)]">{notificationError}</p> : null}
+
+          <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]" id="insights">
+            <WeeklyProgressChart days={recentDays} loading={recentDaysLoading} />
+            <MonthlyHeatmap days={recentDays} />
           </div>
-          <div className="flex gap-2">
-            <button className="ghost-button" onClick={onOpenSettings} type="button">
-              <Settings size={18} />
-            </button>
-            <button className="ghost-button" onClick={logout} type="button">
-              <LogOut size={18} />
-            </button>
+
+          <div id="filters">
+            <HabitFilters
+              blockFilter={blockFilter}
+              blocks={blocks}
+              onBlockFilterChange={setBlockFilter}
+              onSearchChange={setSearchValue}
+              onStatusFilterChange={setStatusFilter}
+              onTimeFilterChange={setTimeFilter}
+              searchValue={searchValue}
+              statusFilter={statusFilter}
+              timeFilter={timeFilter}
+            />
           </div>
-        </div>
 
-        <div className="mt-6 space-y-4">
-          <ProgressBar checkedCount={checkedCount} progress={progress} totalHabits={totalHabits} />
-          <StreakBadge streak={streak} />
-        </div>
-      </header>
+          <FocusBoard
+            completedHabits={completedHabits}
+            onToggle={handleToggle}
+            pendingHabits={pendingHabits}
+          />
 
-      {configLoading || dayLoading || profileLoading ? (
-        <p className="text-sm text-[var(--text-muted)]">Sincronizando hábitos do dia...</p>
-      ) : null}
-      {configError ? <p className="text-sm text-[var(--danger)]">{configError}</p> : null}
-      {profileError ? <p className="text-sm text-[var(--danger)]">{profileError}</p> : null}
-      {dayError ? <p className="text-sm text-[var(--danger)]">{dayError}</p> : null}
-      {recentDaysError ? <p className="text-sm text-[var(--danger)]">{recentDaysError}</p> : null}
-      {reflectionError ? <p className="text-sm text-[var(--danger)]">{reflectionError}</p> : null}
+          <HabitHistoryPanel
+            days={recentDays}
+            habitId={selectedHabitId}
+            habits={habitsForHistory}
+            onHabitChange={setSelectedHabitId}
+          />
 
-      <WeeklyProgressChart days={recentDays} loading={recentDaysLoading} />
-      <MonthlyHeatmap days={recentDays} />
-
-      <HabitFilters
-        blockFilter={blockFilter}
-        blocks={blocks}
-        onBlockFilterChange={setBlockFilter}
-        onSearchChange={setSearchValue}
-        onStatusFilterChange={setStatusFilter}
-        onTimeFilterChange={setTimeFilter}
-        searchValue={searchValue}
-        statusFilter={statusFilter}
-        timeFilter={timeFilter}
-      />
-
-      <FocusBoard
-        completedHabits={completedHabits}
-        onToggle={handleToggle}
-        pendingHabits={pendingHabits}
-      />
-
-      <HabitHistoryPanel
-        days={recentDays}
-        habitId={selectedHabitId}
-        habits={habitsForHistory}
-        onHabitChange={setSelectedHabitId}
-      />
-
-      <RetrospectivePanel
-        analysis={egoAnalysis}
-        initialText={day?.reflection ?? ''}
-        onSave={handleReflectionSave}
-        saving={reflectionSaving}
-      />
-
-      <section className="space-y-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--accent-gold)]">
-            Por Blocos
-          </p>
-          <h2 className="mt-2 text-xl font-bold text-white">Mapa completo do templo</h2>
-        </div>
-
-        {filteredBlocks.length ? (
-          <div className="space-y-6">
-            {filteredBlocks.map((block) => (
-              <HabitBlock
-                block={block}
-                habitsState={day?.habits}
-                key={block.id}
-                onToggle={handleToggle}
-              />
-            ))}
+          <div id="notifications">
+            <NotificationPanel
+              enabled={notificationSettings.enabled}
+              leadMinutes={notificationSettings.leadMinutes}
+              onEnableChange={(enabled) =>
+                handleNotificationSettingsChange({
+                  ...notificationSettings,
+                  enabled,
+                })
+              }
+              onLeadMinutesChange={(leadMinutes) =>
+                handleNotificationSettingsChange({
+                  ...notificationSettings,
+                  leadMinutes,
+                })
+              }
+              onRequestPermission={handleRequestNotificationPermission}
+              onSendTest={handleSendTestNotification}
+              permission={notificationPermission}
+              saving={notificationSaving}
+              supported={notificationsSupported()}
+            />
           </div>
-        ) : (
-          <p className="rounded-[24px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-[var(--text-muted)]">
-            Nenhum hábito encontrado com os filtros atuais.
-          </p>
-        )}
-      </section>
+
+          <div id="reflection">
+            <RetrospectivePanel
+              analysis={egoAnalysis}
+              initialText={day?.reflection ?? ''}
+              onSave={handleReflectionSave}
+              saving={reflectionSaving}
+            />
+          </div>
+
+          <section className="space-y-4" id="blocks">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--accent-gold)]">
+                Por Blocos
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white">Mapa completo do templo</h2>
+            </div>
+
+            {filteredBlocks.length ? (
+              <div className="grid gap-6 2xl:grid-cols-2">
+                {filteredBlocks.map((block) => (
+                  <HabitBlock
+                    block={block}
+                    habitsState={day?.habits}
+                    key={block.id}
+                    onToggle={handleToggle}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-[24px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-[var(--text-muted)]">
+                Nenhum hábito encontrado com os filtros atuais.
+              </p>
+            )}
+          </section>
+        </div>
+      </div>
     </section>
   );
 }

@@ -189,6 +189,10 @@ export async function seedUserProfile(user) {
     displayName: getPreferredNameFromUser(user),
     templeName: getDefaultTempleName(user),
     mantra: 'Disciplina, presença e serviço.',
+    notifications: {
+      enabled: false,
+      leadMinutes: 10,
+    },
     updatedAt: serverTimestamp(),
   };
 
@@ -205,6 +209,22 @@ export async function updateUserProfile(uid, profile) {
       displayName: profile.displayName.trim() || 'Buscador',
       templeName: profile.templeName.trim() || 'Templo Digital',
       mantra: profile.mantra.trim() || 'Disciplina, presença e serviço.',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function updateNotificationPreferences(uid, notifications) {
+  requireDb();
+
+  await setDoc(
+    getProfileRef(uid),
+    {
+      notifications: {
+        enabled: Boolean(notifications.enabled),
+        leadMinutes: Number(notifications.leadMinutes) || 10,
+      },
       updatedAt: serverTimestamp(),
     },
     { merge: true },
