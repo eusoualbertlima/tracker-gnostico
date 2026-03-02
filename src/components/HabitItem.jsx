@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 
-function HabitItem({ habit, checked, onToggle }) {
+function HabitItem({ habit, checked, meta, onToggle }) {
   return (
     <button
       className={`flex w-full items-center gap-3 rounded-[22px] border px-4 py-4 text-left transition-all duration-200 ease-in-out ${
@@ -22,8 +22,15 @@ function HabitItem({ habit, checked, onToggle }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-[var(--text-primary)]">{habit.label}</span>
-        <span className="mt-1 block text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">
-          {habit.time}
+        <span className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="block text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            {habit.time}
+          </span>
+          {meta ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              {meta}
+            </span>
+          ) : null}
         </span>
       </span>
     </button>

@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDoc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -400,6 +401,15 @@ export function subscribeStreak(uid, callback) {
     }
 
     callback(streak);
+  });
+}
+
+export function subscribeRecentDays(uid, amount, callback) {
+  requireDb();
+  const daysRef = collection(db, 'users', uid, 'days');
+
+  return onSnapshot(query(daysRef, orderBy('date', 'desc'), limit(amount)), (snapshot) => {
+    callback(snapshot.docs.map((item) => item.data()));
   });
 }
 
