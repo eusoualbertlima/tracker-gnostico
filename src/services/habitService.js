@@ -20,40 +20,40 @@ export const DEFAULT_BLOCKS = [
     title: 'A Fundação',
     order: 1,
     habits: [
-      { id: 'raom_gaom', label: 'Despertar imóvel + Mantra RAOM GAOM', time: '04:00' },
-      { id: 'auto_obs', label: 'Auto-observação (Morte em Marcha do Orgulho)', time: 'Dia todo' },
-      { id: 'silencio', label: 'Silêncio Hermético ("Faça e nada diga")', time: 'Dia todo' },
-      { id: 'higiene', label: 'Jantar leve + Conjuração KLIM-KRISHNAYA', time: '20:00' },
+      { id: 'despertar_consciente', label: 'Despertar consciente e presença', time: '05:00' },
+      { id: 'auto_observacao', label: 'Auto-observação ao longo do dia', time: 'Dia todo' },
+      { id: 'silencio_interior', label: 'Silêncio interior e vigilância da palavra', time: 'Dia todo' },
     ],
   },
   {
-    id: 'milagre_manha',
+    id: 'pratica_manha',
     icon: '🌅',
-    title: 'O Milagre da Manhã',
+    title: 'Prática da Manhã',
     order: 2,
     habits: [
-      { id: 'oracao', label: 'Leitura / Oração / Meditação', time: '04:05' },
-      { id: 'treino', label: 'Treino Pesado (Transmutação)', time: '05:00' },
+      { id: 'oracao_meditacao', label: 'Oração, meditação ou mantra', time: '05:15' },
+      { id: 'estudo', label: 'Leitura ou estudo consciente', time: '05:45' },
+      { id: 'movimento', label: 'Movimento do corpo ou treino', time: '06:15' },
     ],
   },
   {
-    id: 'campo_batalha',
+    id: 'campo_de_acao',
     icon: '🚀',
-    title: 'O Campo de Batalha',
+    title: 'O Campo de Ação',
     order: 3,
     habits: [
-      { id: 'deep_work', label: 'Deep Work no SaaS/Ativo Próprio', time: '07:00' },
-      { id: 'chatgeniuns', label: 'Suporte e Vendas (ChatGeniuns)', time: '08:00' },
-      { id: 'sacrificio', label: 'Sacrifício (Dharma): Ajudei alguém hoje?', time: 'Dia todo' },
+      { id: 'trabalho_profundo', label: 'Bloco principal de trabalho profundo', time: '08:00' },
+      { id: 'servico', label: 'Serviço, entrega ou contribuição útil', time: 'Dia todo' },
+      { id: 'planejamento', label: 'Prioridades do dia definidas com clareza', time: '08:15' },
     ],
   },
   {
-    id: 'ativo_principal',
-    icon: '💰',
-    title: 'O Ativo Principal',
+    id: 'sustentacao',
+    icon: '💠',
+    title: 'Sustentação',
     order: 4,
     habits: [
-      { id: 'infra_meta', label: 'Infra Própria / Lançamentos (Lucas Batt)', time: '18:00' },
+      { id: 'organizacao', label: 'Organização material, financeira ou operacional', time: '18:00' },
     ],
   },
   {
@@ -62,8 +62,8 @@ export const DEFAULT_BLOCKS = [
     title: 'Fechamento',
     order: 5,
     habits: [
-      { id: 'kanban', label: 'Kanban atualizado para o dia seguinte', time: '20:00' },
-      { id: 'retrospectiva', label: 'Retrospectiva: "Onde agi com ego hoje?"', time: '20:30' },
+      { id: 'retrospectiva', label: 'Retrospectiva do dia e observação do ego', time: '20:30' },
+      { id: 'preparo_amanha', label: 'Preparar o dia seguinte', time: '20:45' },
     ],
   },
 ];
@@ -76,6 +76,10 @@ function requireDb() {
 
 function getConfigRef(uid) {
   return doc(db, 'users', uid, 'config', 'habits');
+}
+
+function getProfileRef(uid) {
+  return doc(db, 'users', uid, 'config', 'profile');
 }
 
 function getDayRef(uid, dateKey) {
@@ -119,9 +123,22 @@ export async function getHabitConfig(uid) {
   return snapshot.exists() ? snapshot.data() : null;
 }
 
+export async function getUserProfile(uid) {
+  requireDb();
+  const snapshot = await getDoc(getProfileRef(uid));
+  return snapshot.exists() ? snapshot.data() : null;
+}
+
 export function subscribeHabitConfig(uid, callback) {
   requireDb();
   return onSnapshot(getConfigRef(uid), (snapshot) => {
+    callback(snapshot.exists() ? snapshot.data() : null);
+  });
+}
+
+export function subscribeUserProfile(uid, callback) {
+  requireDb();
+  return onSnapshot(getProfileRef(uid), (snapshot) => {
     callback(snapshot.exists() ? snapshot.data() : null);
   });
 }
@@ -142,6 +159,52 @@ export async function seedDefaultHabits(uid) {
 
   await setDoc(configRef, payload);
   return payload;
+}
+
+function getPreferredNameFromUser(user) {
+  const firstName = user?.displayName?.trim()?.split(/\s+/)[0];
+  return firstName || 'Buscador';
+}
+
+function getDefaultTempleName(user) {
+  const firstName = getPreferredNameFromUser(user);
+  return `Templo de ${firstName}`;
+}
+
+export async function seedUserProfile(user) {
+  requireDb();
+
+  const profileRef = getProfileRef(user.uid);
+  const snapshot = await getDoc(profileRef);
+
+  if (snapshot.exists()) {
+    return snapshot.data();
+  }
+
+  const payload = {
+    displayName: getPreferredNameFromUser(user),
+    templeName: getDefaultTempleName(user),
+    mantra: 'Disciplina, presença e serviço.',
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(profileRef, payload);
+  return payload;
+}
+
+export async function updateUserProfile(uid, profile) {
+  requireDb();
+
+  await setDoc(
+    getProfileRef(uid),
+    {
+      displayName: profile.displayName.trim() || 'Buscador',
+      templeName: profile.templeName.trim() || 'Templo Digital',
+      mantra: profile.mantra.trim() || 'Disciplina, presença e serviço.',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 export async function ensureDayDocument(uid, dateKey, blocks) {

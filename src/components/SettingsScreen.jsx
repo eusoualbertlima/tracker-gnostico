@@ -1,7 +1,8 @@
-import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useHabitConfig } from '../hooks/useHabitConfig.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 import {
   addBlock,
   addHabit,
@@ -9,15 +10,19 @@ import {
   deleteHabit,
   updateBlock,
   updateHabit,
+  updateUserProfile,
 } from '../services/habitService.js';
 import BlockForm from './BlockForm.jsx';
 import HabitForm from './HabitForm.jsx';
+import ProfileForm from './ProfileForm.jsx';
 
 function SettingsScreen({ onBack }) {
   const { user } = useAuth();
   const { config, loading, error } = useHabitConfig(user?.uid);
+  const { profile, loading: profileLoading, error: profileError } = useUserProfile(user?.uid);
   const [blockDraft, setBlockDraft] = useState(null);
   const [habitDraft, setHabitDraft] = useState(null);
+  const [profileDraft, setProfileDraft] = useState(null);
 
   const blocks = config?.blocks ?? [];
 
@@ -53,6 +58,11 @@ function SettingsScreen({ onBack }) {
     setHabitDraft(null);
   }
 
+  async function handleSubmitProfile(data) {
+    await updateUserProfile(user.uid, data);
+    setProfileDraft(null);
+  }
+
   return (
     <section className="panel screen-fade space-y-6">
       <header className="glass-panel flex items-center justify-between px-5 py-4">
@@ -70,6 +80,39 @@ function SettingsScreen({ onBack }) {
 
       {loading ? <p className="text-sm text-[var(--text-muted)]">Carregando configuração...</p> : null}
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
+      {profileLoading ? <p className="text-sm text-[var(--text-muted)]">Carregando perfil...</p> : null}
+      {profileError ? <p className="text-sm text-[var(--danger)]">{profileError}</p> : null}
+
+      <section className="glass-panel p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">Perfil</p>
+            <h2 className="mt-1 text-lg font-bold text-white">
+              {profile?.templeName?.trim() || 'Templo Digital'}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--text-primary)]">
+              {profile?.displayName?.trim() || user?.displayName || 'Buscador'}
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              {profile?.mantra?.trim() || 'Disciplina, presença e serviço.'}
+            </p>
+          </div>
+          <button
+            className="action-button shrink-0"
+            onClick={() =>
+              setProfileDraft({
+                displayName: profile?.displayName || user?.displayName || '',
+                templeName: profile?.templeName || '',
+                mantra: profile?.mantra || '',
+              })
+            }
+            type="button"
+          >
+            <Save size={16} />
+            Editar perfil
+          </button>
+        </div>
+      </section>
 
       <div className="space-y-4">
         {blocks.map((block) => (
@@ -161,6 +204,14 @@ function SettingsScreen({ onBack }) {
           initialValue={habitDraft.habit}
           onCancel={() => setHabitDraft(null)}
           onSubmit={handleSubmitHabit}
+        />
+      ) : null}
+
+      {profileDraft !== null ? (
+        <ProfileForm
+          initialValue={profileDraft}
+          onCancel={() => setProfileDraft(null)}
+          onSubmit={handleSubmitProfile}
         />
       ) : null}
     </section>

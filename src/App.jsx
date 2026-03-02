@@ -1,13 +1,35 @@
-import { useEffect, useState } from 'react';
-import Dashboard from './components/Dashboard.jsx';
-import LoginScreen from './components/LoginScreen.jsx';
-import SettingsScreen from './components/SettingsScreen.jsx';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuth } from './context/AuthContext.jsx';
-import { seedDefaultHabits } from './services/habitService.js';
+import { firebaseReady, initializeAnalytics } from './firebase.js';
+import { seedDefaultHabits, seedUserProfile } from './services/habitService.js';
+
+const Dashboard = lazy(() => import('./components/Dashboard.jsx'));
+const LoginScreen = lazy(() => import('./components/LoginScreen.jsx'));
+const SettingsScreen = lazy(() => import('./components/SettingsScreen.jsx'));
+
+function ScreenLoader() {
+  return (
+    <main className="app-shell">
+      <section className="panel glass-panel">
+        <p className="p-6 text-sm text-[var(--text-muted)]">Carregando templo...</p>
+      </section>
+    </main>
+  );
+}
 
 function App() {
-  const { user, loading, firebaseReady } = useAuth();
+  const { user, loading } = useAuth();
   const [screen, setScreen] = useState('dashboard');
+
+  useEffect(() => {
+    if (!firebaseReady) {
+      return;
+    }
+
+    initializeAnalytics().catch(() => {
+      console.error('Erro ao inicializar Firebase Analytics.');
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -15,32 +37,32 @@ function App() {
       return;
     }
 
-    seedDefaultHabits(user.uid).catch((error) => {
-      console.error('Erro ao garantir seed de hábitos:', error);
+    Promise.all([seedDefaultHabits(user.uid), seedUserProfile(user)]).catch((error) => {
+      console.error('Erro ao garantir dados iniciais do usuário:', error);
     });
   }, [user]);
 
   if (loading) {
-    return (
-      <main className="app-shell">
-        <section className="panel glass-panel">
-          <p className="p-6 text-sm text-[var(--text-muted)]">Carregando templo...</p>
-        </section>
-      </main>
-    );
+    return <ScreenLoader />;
   }
 
   if (!user) {
-    return <LoginScreen firebaseReady={firebaseReady} />;
+    return (
+      <Suspense fallback={<ScreenLoader />}>
+        <LoginScreen firebaseReady={firebaseReady} />
+      </Suspense>
+    );
   }
 
   return (
     <main className="app-shell">
-      {screen === 'settings' ? (
-        <SettingsScreen onBack={() => setScreen('dashboard')} />
-      ) : (
-        <Dashboard onOpenSettings={() => setScreen('settings')} />
-      )}
+      <Suspense fallback={<ScreenLoader />}>
+        {screen === 'settings' ? (
+          <SettingsScreen onBack={() => setScreen('dashboard')} />
+        ) : (
+          <Dashboard onOpenSettings={() => setScreen('settings')} />
+        )}
+      </Suspense>
     </main>
   );
 }
