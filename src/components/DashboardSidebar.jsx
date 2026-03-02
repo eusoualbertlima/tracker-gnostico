@@ -1,5 +1,6 @@
 import {
   BookText,
+  ChartColumnBig,
   LayoutDashboard,
   LogOut,
   ScrollText,
@@ -25,6 +26,12 @@ const NAV_ITEMS = [
     icon: ScrollText,
     label: 'Retrospectiva',
     description: 'Escrita do dia e leitura dos egos.',
+  },
+  {
+    id: 'reports',
+    icon: ChartColumnBig,
+    label: 'Histórico',
+    description: 'Relatórios de 30, 60 e 90 dias.',
   },
   {
     id: 'settings',

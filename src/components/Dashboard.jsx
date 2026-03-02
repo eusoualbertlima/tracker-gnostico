@@ -17,9 +17,10 @@ import DashboardHomePage from './DashboardHomePage.jsx';
 import DashboardSidebar from './DashboardSidebar.jsx';
 import HabitsPage from './HabitsPage.jsx';
 import ReflectionPage from './ReflectionPage.jsx';
+import ReportsPage from './ReportsPage.jsx';
 import SettingsScreen from './SettingsScreen.jsx';
 
-const WORKSPACE_SCREENS = new Set(['dashboard', 'habits', 'reflection', 'settings']);
+const WORKSPACE_SCREENS = new Set(['dashboard', 'habits', 'reflection', 'reports', 'settings']);
 const ACTIVE_SCREEN_STORAGE_KEY = 'temple-active-screen';
 
 function getGreetingName(user, profile) {
@@ -69,7 +70,7 @@ function Dashboard() {
   const { profile, loading: profileLoading, error: profileError } = useUserProfile(user?.uid);
   const { days: recentDays, loading: recentDaysLoading, error: recentDaysError } = useRecentProgress(
     user?.uid,
-    35,
+    90,
   );
   const blocks = useMemo(() => config?.blocks ?? [], [config]);
   const { day, streak, loading: dayLoading, error: dayError, totalHabits, dateKey } = useHabits(
@@ -313,6 +314,17 @@ function Dashboard() {
 
     if (activeScreen === 'settings') {
       return <SettingsScreen onOpenSidebar={() => setSidebarOpen(true)} />;
+    }
+
+    if (activeScreen === 'reports') {
+      return (
+        <ReportsPage
+          blocks={blocks}
+          days={recentDays}
+          loading={recentDaysLoading}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+      );
     }
 
     return (
