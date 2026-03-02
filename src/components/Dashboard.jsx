@@ -1,16 +1,21 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { LogOut, Settings } from 'lucide-react';
-import { useMemo } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useHabitConfig } from '../hooks/useHabitConfig.js';
 import { useHabits } from '../hooks/useHabits.js';
 import { useRecentProgress } from '../hooks/useRecentProgress.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
-import { toggleHabit } from '../services/habitService.js';
+import { saveReflection, toggleHabit } from '../services/habitService.js';
+import { analyzeRetrospective } from '../utils/egoAnalysis.js';
 import FocusBoard from './FocusBoard.jsx';
+import HabitFilters from './HabitFilters.jsx';
+import HabitHistoryPanel from './HabitHistoryPanel.jsx';
 import HabitBlock from './HabitBlock.jsx';
+import MonthlyHeatmap from './MonthlyHeatmap.jsx';
 import ProgressBar from './ProgressBar.jsx';
+import RetrospectivePanel from './RetrospectivePanel.jsx';
 import StreakBadge from './StreakBadge.jsx';
 import WeeklyProgressChart from './WeeklyProgressChart.jsx';
 
@@ -28,19 +33,45 @@ function getTimeRank(time) {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+function getTimeBucket(time) {
+  const rank = getTimeRank(time);
+
+  if (rank === Number.MAX_SAFE_INTEGER) {
+    return 'timeless';
+  }
+
+  if (rank < 12 * 60) {
+    return 'morning';
+  }
+
+  if (rank < 18 * 60) {
+    return 'afternoon';
+  }
+
+  return 'night';
+}
+
 function Dashboard({ onOpenSettings }) {
   const { user, logout } = useAuth();
   const { config, loading: configLoading, error: configError } = useHabitConfig(user?.uid);
   const { profile, loading: profileLoading, error: profileError } = useUserProfile(user?.uid);
   const { days: recentDays, loading: recentDaysLoading, error: recentDaysError } = useRecentProgress(
     user?.uid,
-    7,
+    35,
   );
   const blocks = useMemo(() => config?.blocks ?? [], [config]);
   const { day, streak, loading: dayLoading, error: dayError, totalHabits, dateKey } = useHabits(
     user?.uid,
     blocks,
   );
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [blockFilter, setBlockFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [searchValue, setSearchValue] = useState('');
+  const [selectedHabitId, setSelectedHabitId] = useState('');
+  const [reflectionSaving, setReflectionSaving] = useState(false);
+  const [reflectionError, setReflectionError] = useState('');
+  const deferredSearchValue = useDeferredValue(searchValue);
 
   const checkedCount = useMemo(
     () => Object.values(day?.habits ?? {}).filter(Boolean).length,
@@ -74,17 +105,85 @@ function Dashboard({ onOpenSettings }) {
         }),
     [blocks, day],
   );
+  const filteredHabits = useMemo(() => {
+    const normalizedSearch = deferredSearchValue.trim().toLowerCase();
+
+    return organizedHabits.filter((habit) => {
+      if (statusFilter === 'pending' && habit.checked) {
+        return false;
+      }
+
+      if (statusFilter === 'completed' && !habit.checked) {
+        return false;
+      }
+
+      if (blockFilter !== 'all' && habit.blockId !== blockFilter) {
+        return false;
+      }
+
+      if (timeFilter !== 'all' && getTimeBucket(habit.time) !== timeFilter) {
+        return false;
+      }
+
+      if (normalizedSearch && !habit.label.toLowerCase().includes(normalizedSearch)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [blockFilter, deferredSearchValue, organizedHabits, statusFilter, timeFilter]);
   const pendingHabits = useMemo(
-    () => organizedHabits.filter((habit) => !habit.checked),
-    [organizedHabits],
+    () => filteredHabits.filter((habit) => !habit.checked),
+    [filteredHabits],
   );
   const completedHabits = useMemo(
-    () => organizedHabits.filter((habit) => habit.checked),
-    [organizedHabits],
+    () => filteredHabits.filter((habit) => habit.checked),
+    [filteredHabits],
   );
+  const habitsForHistory = filteredHabits.length ? filteredHabits : organizedHabits;
+  const filteredHabitIds = useMemo(
+    () => new Set(filteredHabits.map((habit) => habit.id)),
+    [filteredHabits],
+  );
+  const filteredBlocks = useMemo(
+    () =>
+      blocks
+        .map((block) => ({
+          ...block,
+          habits: (block.habits ?? []).filter((habit) =>
+            filteredHabits.length ? filteredHabitIds.has(habit.id) : true,
+          ),
+        }))
+        .filter((block) => block.habits.length),
+    [blocks, filteredHabitIds, filteredHabits.length],
+  );
+  const egoAnalysis = day?.egoAnalysis ?? analyzeRetrospective(day?.reflection ?? '');
+
+  useEffect(() => {
+    if (!habitsForHistory.length) {
+      setSelectedHabitId('');
+      return;
+    }
+
+    if (!habitsForHistory.some((habit) => habit.id === selectedHabitId)) {
+      setSelectedHabitId(habitsForHistory[0].id);
+    }
+  }, [habitsForHistory, selectedHabitId]);
 
   async function handleToggle(habitId) {
     await toggleHabit(user.uid, dateKey, habitId);
+  }
+
+  async function handleReflectionSave(nextText) {
+    try {
+      setReflectionSaving(true);
+      setReflectionError('');
+      await saveReflection(user.uid, dateKey, nextText);
+    } catch (error) {
+      setReflectionError(error.message || 'Falha ao salvar retrospectiva.');
+    } finally {
+      setReflectionSaving(false);
+    }
   }
 
   return (
@@ -122,13 +221,41 @@ function Dashboard({ onOpenSettings }) {
       {profileError ? <p className="text-sm text-[var(--danger)]">{profileError}</p> : null}
       {dayError ? <p className="text-sm text-[var(--danger)]">{dayError}</p> : null}
       {recentDaysError ? <p className="text-sm text-[var(--danger)]">{recentDaysError}</p> : null}
+      {reflectionError ? <p className="text-sm text-[var(--danger)]">{reflectionError}</p> : null}
 
       <WeeklyProgressChart days={recentDays} loading={recentDaysLoading} />
+      <MonthlyHeatmap days={recentDays} />
+
+      <HabitFilters
+        blockFilter={blockFilter}
+        blocks={blocks}
+        onBlockFilterChange={setBlockFilter}
+        onSearchChange={setSearchValue}
+        onStatusFilterChange={setStatusFilter}
+        onTimeFilterChange={setTimeFilter}
+        searchValue={searchValue}
+        statusFilter={statusFilter}
+        timeFilter={timeFilter}
+      />
 
       <FocusBoard
         completedHabits={completedHabits}
         onToggle={handleToggle}
         pendingHabits={pendingHabits}
+      />
+
+      <HabitHistoryPanel
+        days={recentDays}
+        habitId={selectedHabitId}
+        habits={habitsForHistory}
+        onHabitChange={setSelectedHabitId}
+      />
+
+      <RetrospectivePanel
+        analysis={egoAnalysis}
+        initialText={day?.reflection ?? ''}
+        onSave={handleReflectionSave}
+        saving={reflectionSaving}
       />
 
       <section className="space-y-4">
@@ -139,16 +266,22 @@ function Dashboard({ onOpenSettings }) {
           <h2 className="mt-2 text-xl font-bold text-white">Mapa completo do templo</h2>
         </div>
 
-        <div className="space-y-6">
-        {blocks.map((block) => (
-          <HabitBlock
-            block={block}
-            habitsState={day?.habits}
-            key={block.id}
-            onToggle={handleToggle}
-          />
-        ))}
-        </div>
+        {filteredBlocks.length ? (
+          <div className="space-y-6">
+            {filteredBlocks.map((block) => (
+              <HabitBlock
+                block={block}
+                habitsState={day?.habits}
+                key={block.id}
+                onToggle={handleToggle}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-[24px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-[var(--text-muted)]">
+            Nenhum hábito encontrado com os filtros atuais.
+          </p>
+        )}
       </section>
     </section>
   );

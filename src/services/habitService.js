@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { format, isSameDay, parseISO, subDays } from 'date-fns';
 import { db, firebaseReady } from '../firebase.js';
+import { analyzeRetrospective } from '../utils/egoAnalysis.js';
 
 export const DEFAULT_BLOCKS = [
   {
@@ -114,6 +115,8 @@ function buildDayPayload(dateKey, blocks) {
     date: dateKey,
     habits,
     progress: 0,
+    reflection: '',
+    egoAnalysis: analyzeRetrospective(''),
     updatedAt: serverTimestamp(),
   };
 }
@@ -402,6 +405,26 @@ export function subscribeStreak(uid, callback) {
 
     callback(streak);
   });
+}
+
+export async function saveReflection(uid, dateKey, reflection) {
+  requireDb();
+
+  const analysis = analyzeRetrospective(reflection);
+
+  await setDoc(
+    getDayRef(uid, dateKey),
+    {
+      date: dateKey,
+      reflection,
+      egoAnalysis: analysis,
+      reflectionUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return analysis;
 }
 
 export function subscribeRecentDays(uid, amount, callback) {
